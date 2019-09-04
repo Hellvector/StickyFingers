@@ -1,8 +1,0 @@
-## Interface: 80200
-## Author: NewbieC4
-## Title: StickyFingers
-## Notes: Sticky fingers leave empty pockets.
-## Version: 0.4
-## SavedVariablesPerCharacter: StickyFingersLoot
-
-StickyFingers.lua
