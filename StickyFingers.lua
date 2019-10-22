@@ -14,10 +14,11 @@
 -- Version 0.8      Ran into an issue with the latest Classic client not returning the Spell ID. Added a non-localized work around for now.
 -- Version 0.8.1    Had some weird bugs causing the picked toggle to stay open indefinitely, resulting in massive computation errors.
 -- Version 0.8.2    Last chance before making some MAJOR changes, additions, and a complete overhaul of the saved variables.
+-- Version 0.9      Variables are now saved in a complex table system. Loot is tracked by level, and a record high is saved for each level as well.
+--                  A process was also put in place to save player data from before v0.9 and implement it as best as possible into the new system.
 
+local StickyFingers = CreateFrame("Frame")
 
--- Debugging text toggle.
-local stickyDebug = false
 -- Save the player GUID for spell checking.
 local playerGUID = UnitGUID("player")
 -- Save the player class for addon activation.
@@ -26,8 +27,64 @@ local playerClass, playerClassName = UnitClass("player")
 local picked = false
 -- Player money used for reference.
 local playerMoney = 0
--- Amount picked this session.
-local pickedMoney = 0
+
+function StickyFingers:updateMoney(pocketChange)
+  -- If the table is currently empty, create a new entry.
+  if StickyFingers:tableLength(StickyFingersLoot.money.level) == 0 then
+    StickyFingers:newLevel()
+  end
+  -- Run the search loop.
+  for i=1, StickyFingers:tableLength(StickyFingersLoot.money.level) do
+    if StickyFingersLoot.money.level[i].playerLevel == UnitLevel("player") then
+      StickyFingersLoot.money.level[i].total = StickyFingersLoot.money.level[i].total + pocketChange
+      StickyFingersLoot.money.level[i].count = StickyFingersLoot.money.level[i].count + 1
+      if pocketChange > StickyFingersLoot.money.level[i].max.amount then
+        StickyFingersLoot.money.level[i].max.date = date("%m/%d/%y")
+        --StickyFingersLoot.money.level.i.max.time =
+        StickyFingersLoot.money.level[i].max.amount = pocketChange
+        --StickyFingersLoot.money.level.i.max.unitName =
+        --StickyFingersLoot.money.level.i.max.unitLevel =
+        --StickyFingersLoot.money.level.i.max.zone =
+        --StickyFingersLoot.money.level.i.max.x =
+        --StickyFingersLoot.money.level.i.max.y =
+      end
+    -- If the end of the table is reached and no entry for the current level was found, create a new entry and reset the loop.
+    elseif i == StickyFingers:tableLength(StickyFingersLoot.money.level) then
+      StickyFingers:newLevel()
+      i=1
+    end
+  end
+end
+
+-- Credit to GatherLite for this one! :D
+function StickyFingers:tableLength(table)
+  local count = 0
+  if table then
+    for _ in pairs(table) do
+      count = count + 1
+    end
+  end
+  return count
+end
+
+-- Create a new entry in the money.level table for the current level.
+function StickyFingers:newLevel()
+  table.insert(StickyFingersLoot.money.level, {
+    playerLevel = UnitLevel("player"),
+    total = 0,
+    count = 0,
+    max = {
+      date = 0,
+      time = 0,
+      amount = 0,
+      unitName = 0,
+      unitLevel = 0,
+      zone = 0,
+      x = 0,
+      y = 0,
+    }
+  })
+end
 
 -- A local funtion will be used to sort out which even trigger has been fired.
 local function eventHandler(self, event, ...)
@@ -41,13 +98,43 @@ local function eventHandler(self, event, ...)
     end
   end
 
-  if ((event == "ADDON_LOADED" and playerClassName == "ROGUE") and StickyFingersLevelStarted == nil) then
-    -- If no saved lifetime loot value exists, initialize at 0.
-    StickyFingersLoot = 0
-    StickyFingersLevelStarted = UnitLevel("player")
-    StickyFingersDateStarted = date("%m/%d/%y")
-    StickyFingersTimesPicked = 0
-    StickyFingersTimesFailed = 0
+  if (event == "ADDON_LOADED" and playerClassName == "ROGUE") then
+    local tempLoot = nil
+
+    -- If saved variables from before v0.9 are found, save them temporarily in tempLoot{} so we can overhaul the saved variables.
+    if StickyFingersLevelStarted ~= nil then
+      tempLoot = {
+        total = StickyFingersLoot,
+        levelStarted = StickyFingersLevelStarted,
+        dateStarted = StickyFingersDateStarted
+      }
+      StickyFingersLoot = nil
+      StickyFingersLevelStarted = nil
+      StickyFingersDateStarted = nil
+    end
+
+    -- If no information is found in the StickyFingersLoot table, create it.
+    if StickyFingersLoot == nil then
+      StickyFingersLoot = {
+        dateStarted = date("%m/%d/%y"),
+        levelStarted = UnitLevel("player"),
+        money = {
+          level = {}
+        },
+        items = {},
+        config = {
+          debug = false
+        },
+      };
+
+      -- If information is found in tempLoot, insert it into the new table.
+      if tempLoot ~= nil then
+        StickyFingersLoot.oldLoot = tempLoot.total
+        StickyFingersLoot.dateStarted = tempLoot.dateStarted
+        StickyFingersLoot.levelStarted = tempLoot.levelStarted
+        print("Old saved variables loaded into the new tables.")
+      end
+    end
   end
 
   if event == "COMBAT_LOG_EVENT_UNFILTERED" then
@@ -105,15 +192,15 @@ local function eventHandler(self, event, ...)
 
     --Let's try this again, shall we. Version 0.8.1 trying to fix a weird bug.
     if picked == true then
-      picked = false
+      --picked = false
       --print("Picked is false because the player looted money.")
       local newMoney = GetMoney()
       --print("Player now has "..GetCoinText(newMoney,", ")..".")
-      local pocketchange = (newMoney - playerMoney)
-      --print("Player looted "..GetCoinText(pocketchange).."!")
-      pickedMoney = (pickedMoney + pocketchange)
+      local pocketChange = (newMoney - playerMoney)
+      --print("Player looted "..GetCoinText(pocketChange).."!")
+      --local pickedMoney = (pickedMoney + pocketChange)
       --print("Player has picked "..GetCoinText(pickedMoney,", ").." this session!")
-      StickyFingersLoot = (StickyFingersLoot + pocketchange)
+      StickyFingers:updateMoney(pocketChange)
       --print("Player has picked "..GetCoinText(StickyFingersLoot,", ").." in their life!")
     end
     --print("Picked is actually "..(picked and 'true' or 'false')..".")
@@ -196,14 +283,9 @@ function StickyFingersSlashCommand(msg)
   end
 end
 
--- Items looted test area.
-local StickyFingersItemsLooted = {
-  {5428, "[Homemade Cherry Pie]", 1, 1,}
-}
 
 
 
-local StickyFingers = CreateFrame("Frame")
 StickyFingers:RegisterEvent("PLAYER_LOGIN")
 StickyFingers:RegisterEvent("ADDON_LOADED")
 if playerClassName == "ROGUE" then

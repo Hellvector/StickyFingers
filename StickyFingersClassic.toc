@@ -3,6 +3,6 @@
 ## Title: StickyFingers
 ## Notes: Sticky fingers leave empty pockets. /sticky
 ## Version: 0.8
-## SavedVariablesPerCharacter: StickyFingersLoot, StickyFingersLevelStarted, StickyFingersDateStarted, StickyFingersTimesPicked, StickyFingersTimesFailed
+## SavedVariablesPerCharacter: StickyFingersLoot, StickyFingersLevelStarted, StickyFingersDateStarted
 
 StickyFingers.lua
