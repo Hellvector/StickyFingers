@@ -16,6 +16,7 @@
 -- Version 0.8.2    Last chance before making some MAJOR changes, additions, and a complete overhaul of the saved variables.
 -- Version 0.9      Variables are now saved in a complex table system. Loot is tracked by level, and a record high is saved for each level as well.
 --                  A process was also put in place to save player data from before v0.9 and implement it as best as possible into the new system.
+-- Version 0.9.1    Implementing the tracking of looted items into the table.
 
 local StickyFingers = CreateFrame("Frame")
 
@@ -48,6 +49,8 @@ function StickyFingers:updateMoney(pocketChange)
         --StickyFingersLoot.money.level.i.max.x =
         --StickyFingersLoot.money.level.i.max.y =
       end
+      print(GetCoinText(pocketChange).." recorded for lvl "..StickyFingersLoot.money.level[i].playerLevel..".")
+      break
     -- If the end of the table is reached and no entry for the current level was found, create a new entry and reset the loop.
     elseif i == StickyFingers:tableLength(StickyFingersLoot.money.level) then
       StickyFingers:newLevel()
@@ -84,6 +87,36 @@ function StickyFingers:newLevel()
       y = 0,
     }
   })
+end
+
+-- Create a new entry in the items table for the looted item.
+function StickyFingers:newItem(lootID, lootString, lootLink)
+  table.insert(StickyFingersLoot.items, {
+    itemID = lootID,
+    itemString = lootString,
+    itemLink = lootLink,
+    count = 1
+  })
+  print("New entry: "..lootLink)
+end
+
+function StickyFingers:updateItems(lootID, lootString, lootLink)
+  -- If the table is currently empty, create a new entry.
+  if StickyFingers:tableLength(StickyFingersLoot.items) == 0 then
+    StickyFingers:newItem(lootID, lootString, lootLink)
+  else
+  -- Run the search loop.
+    for i=1, StickyFingers:tableLength(StickyFingersLoot.money.level) do
+      if StickyFingersLoot.items[i].itemID == lootID then
+        StickyFingersLoot.items[i].count = StickyFingersLoot.items[i].count + 1
+        print("Updated entry: "..lootLink)
+        break
+        -- If the end of the table is reached and no entry for the current item was found, create a new entry.
+      elseif i == StickyFingers:tableLength(StickyFingersLoot.items) then
+        StickyFingers:newItem(lootID, lootString, lootLink)
+      end
+    end
+  end
 end
 
 -- A local funtion will be used to sort out which even trigger has been fired.
@@ -157,7 +190,7 @@ local function eventHandler(self, event, ...)
       if spellId == 921 or spellName == "Pick Pocket" then
         -- Check how much money the player has before looting.
         playerMoney = GetMoney()
-        print("Player has "..GetCoinText(playerMoney,", ")..".")
+        --print("Player has "..GetCoinText(playerMoney,", ")..".")
         --print("What has he got in HIS pocketses?")
         -- Set picked pocket switch to ON.
         picked = true
@@ -211,7 +244,7 @@ local function eventHandler(self, event, ...)
     --print("Player target has changed...")
     if picked == true then
       picked = false
-      --print("Picked is false because of a target change.")
+      print("Picked is false because of a target change.")
     end
     --print("Picked is actually "..(picked and 'true' or 'false')..".")
   end
@@ -249,6 +282,7 @@ local function eventHandler(self, event, ...)
     print(itemLink)
     print(itemString)
     print(itemID)
+    StickyFingers:updateItems(itemID, itemString, itemLink)
   end
 
 end
